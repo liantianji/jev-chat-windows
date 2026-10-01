@@ -85,6 +85,9 @@ def _aliyun_sdk_base(base_url: str | None) -> str:
     if not sdk_base:
         raise JevError("阿里云 Jev 需要设置 Base URL。")
     sdk_base = sdk_base.rstrip("/")
+    marker = "/compatible-mode/v1"
+    if marker in sdk_base:
+        return sdk_base.split(marker, 1)[0] + "/compatible-mode"
     if not sdk_base.endswith("/compatible-mode"):
         sdk_base += "/compatible-mode"
     return sdk_base
@@ -329,6 +332,12 @@ if __name__ == "__main__":
         assert list_models("aliyun", "ts-key", base_url="https://custom.alibaba/base") == [
             "jev-latest", "jev-preview"]
         assert aliyun_ask == got
+        ask({"chat": {}}, questions, provider="aliyun", model="decision-model-preview",
+            base_url="https://custom.alibaba/base/compatible-mode/v1")
+        assert seen["init"]["base_url"] == "https://custom.alibaba/base/compatible-mode"
+        ask({"chat": {}}, questions, provider="aliyun", model="decision-model-preview",
+            base_url="https://custom.alibaba/base/compatible-mode/v1/systemone")
+        assert seen["init"]["base_url"] == "https://custom.alibaba/base/compatible-mode"
 
     class _Boom(Exception):
         status = 429
