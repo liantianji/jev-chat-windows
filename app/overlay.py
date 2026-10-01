@@ -688,7 +688,7 @@ class Overlay:
         group.keyEdit.returnPressed.connect(self._save)
         box.addWidget(group.keyEdit)
         box.addWidget(self._hint(
-            "OpenRouter 的 key 或 TypeSafe 的 key，看上面选的来源。" if kind == "jev"
+            "OpenRouter / TypeSafe / 阿里云 Jev 的 key，看上面选的来源。" if kind == "jev"
             else "上面选哪家就填哪家的 key；换来源重填一次，只存这一把。"))
         model_label = _tlabel("模型", 13)
         box.addWidget(model_label)
@@ -745,7 +745,9 @@ class Overlay:
         """「获取模型」：拿填的 key（没填就拿存的）去问接口，网络调用丢后台线程。"""
         provider = self._provider_of(group)
         custom = group.kind == "draft" and provider in providers.CUSTOM
-        base = self.baseEdit.text().strip() if custom else None
+        base = self.baseEdit.text().strip() if custom else (
+            settings.aliyun_base_url() if group.kind == "jev" and provider == "aliyun"
+            else None)
         key = group.keyEdit.text().strip() or group.stored_key()
         if not key:
             bind(group.status, "先填密钥", "setText")
@@ -762,7 +764,7 @@ class Overlay:
         """后台线程：判断走 jev_client，起草按协议走 llm；失败把原因一起送回主线程。"""
         try:
             if group.kind == "jev":
-                models = jev_client.list_models(provider, key)
+                models = jev_client.list_models(provider, key, base_url=base)
             else:
                 spec = providers.DRAFT_PROVIDERS[provider]
                 models = llm.list_models(spec.protocol, base or spec.base, key, headers=spec.headers)

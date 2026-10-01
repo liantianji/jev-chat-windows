@@ -127,8 +127,8 @@ KO = {
     "写那三条候选。OpenAI / Anthropic / Gemini 三种接口都走各自官方 SDK。默认 DeepSeek 官网直连，国内最快。":
         "후보 세 개를 씁니다. OpenAI / Anthropic / Gemini 모두 각자의 공식 SDK로 연결해요.",
     "保存后用于下一次生成的回复。": "저장하면 다음 생성부터 적용됩니다.",
-    "OpenRouter 的 key 或 TypeSafe 的 key，看上面选的来源。":
-        "위에서 선택한 제공처에 맞는 OpenRouter 또는 TypeSafe API 키를 입력하세요.",
+    "OpenRouter / TypeSafe / 阿里云 Jev 的 key，看上面选的来源。":
+        "위에서 선택한 제공처에 맞는 OpenRouter / TypeSafe / Alibaba Cloud Jev API 키를 입력하세요.",
     "上面选哪家就填哪家的 key；换来源重填一次，只存这一把。":
         "위에서 선택한 제공처의 API 키를 입력하세요. 제공처를 바꾸면 다시 입력해야 하며, 현재 키 하나만 저장됩니다.",
     "关：秒回，够用。开：模型先想再写，更斟酌但慢好几倍、贵一些。只有 {providers} 认这个开关。":

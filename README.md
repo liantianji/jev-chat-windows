@@ -27,7 +27,8 @@
 要求：Windows 10 1903+ / 11，聊天窗口开着，两个 API key（判断一个、起草一个，见下）。
 
 首次启动会弹设置页填这两个 key。key 写进 Windows 用户环境变量（注册表 `HKCU\Environment`）——
-全程只有 `JEV_API_KEY` 和 `LLM_API_KEY` 这两个，不落任何文件；其余设置写在 exe 旁边的
+默认两把 key：判断用 `JEV_API_KEY`、起草用 `LLM_API_KEY`；阿里云 Jev 可选 `ALIYUN_API_KEY`，
+不落任何文件；其余设置写在 exe 旁边的
 `config.json`，整个文件夹拷走设置也跟着走。
 
 > exe 没签名，SmartScreen 会拦一下：「更多信息」→「仍要运行」。介意就往下看「自己打包」，自己打的更踏实。
@@ -45,7 +46,7 @@
 设置页的「模型」卡片分两节，各填一把 key：
 
 1. **判断 · Jev** —— 判断意图、紧张度，并给三条候选排序。来源选 **OpenRouter**（默认，key 在
-   [openrouter.ai](https://openrouter.ai/) 申请）或 **TypeSafe 直连**（key 在
+   [openrouter.ai](https://openrouter.ai/) 申请）或 **TypeSafe 直连 / 阿里云 Jev**（key 在
    [console.typesafe.ai](https://console.typesafe.ai/) 申请）。填的是哪家的 key 看你上面选了哪家。
 2. **起草 · 语言模型** —— 写那三条候选。默认 **DeepSeek 官网**直连，key 在
    [platform.deepseek.com](https://platform.deepseek.com/) 申请（很便宜，起草一次几厘钱）。
@@ -60,7 +61,7 @@
 DeepSeek 官方 API（`api.deepseek.com`）国内直连，起草基本就是一次 HTTP 请求的时间，体感差好几倍。
 所以起草默认就是它，不用改。
 
-判断那一步比起草轻得多，慢一点无所谓，默认走 OpenRouter 即可；嫌慢就把它也换成 TypeSafe 直连。
+判断那一步比起草轻得多，慢一点无所谓，默认走 OpenRouter 即可；嫌慢就把它换成 TypeSafe 直连或阿里云 Jev。
 两把 key 都只进注册表，不落文件。
 
 **日常怎么用**
@@ -117,7 +118,7 @@ RapidOCR 自带的只有中英文模型，韩文整段都是乱码：同一个 K
 - **调试视图**（可选）：另开一个窗口，实时画出截到的画面和每个识别框——绿 = 我、蓝 = 对方、
   灰 = 过滤掉的灰字、橙 = 当成发言人名、红 = 当成图片丢掉、黄 = 小字丢掉，外加消息区和头部的框、
   OCR 耗时、这一帧读出来的每一行。识别不对时一眼看出是哪一步的锅。只在内存里画，不存图。
-- **两个模型都能换**：判断走 OpenRouter 或 TypeSafe 直连；起草有 12 家预设（默认 DeepSeek 官网），
+- **两个模型都能换**：判断走 OpenRouter / TypeSafe 直连 / 阿里云 Jev；起草有 12 家预设（默认 DeepSeek 官网），
   OpenAI / Anthropic / Gemini 三种协议都支持，也能填自己的 Base URL。全程只要两把 key。
 - **思考模式开关**：默认关；开了模型先想再写，更斟酌但慢好几倍、贵一些。
 - **参考上下文条数**：3~30，默认 10，起草和判断都按它取最近 N 条。
@@ -142,15 +143,16 @@ RapidOCR 自带的只有中英文模型，韩文整段都是乱码：同一个 K
 - **不碰钱。** 转账、红包、收款相关的界面元素一律不碰，起草的 system prompt 里也禁了这几个话题。
 - **只有对方的新消息到来（或你在群里换了回复对象）才调一次模型。** 静默期零调用——十分钟没人说话
   就是十分钟零 token。
-- **API key 只进环境变量，而且全程只有两个。** `JEV_API_KEY`（判断）和 `LLM_API_KEY`（起草），
-  不管来源选哪家都是这两个槽。都写进注册表 `HKCU\Environment`（跟 `setx` 同一个地方），任何文件里
+- **API key 只进环境变量。** 判断默认 `JEV_API_KEY`、起草默认 `LLM_API_KEY`；选阿里云 Jev 时
+  可额外配 `ALIYUN_API_KEY`（没配就退回 `JEV_API_KEY`）。
+  都写进注册表 `HKCU\Environment`（跟 `setx` 同一个地方），任何文件里
   都不出现 key，也绝不进日志（报错文本一律脱敏）。老版本按来源分开存的 `OPENROUTER_API_KEY` /
   `DEEPSEEK_API_KEY` 仍然能读到，保存一次就迁到新名字上。
 - **启动时查一次版本号（可关）。** 只向 GitHub Releases API 发一个 GET，带的只有 UA 和当前版本号，
   不夹带任何聊天内容；设置里「启动时检查更新」关掉就完全不发这个请求，源码直接跑（没有版本号）也
   不会发。
 
-什么会出网：判断（`JEV_API_KEY`）去你选的 OpenRouter 或 TypeSafe 直连；起草（`LLM_API_KEY`）发给你
+什么会出网：判断（`JEV_API_KEY`）去你选的 OpenRouter / TypeSafe 直连 / 阿里云 Jev；起草（`LLM_API_KEY`）发给你
 在设置里选的那家接口（DeepSeek 官网、OpenRouter、OpenAI、Moonshot、智谱、通义、硅基流动、
 OpenCode Go、Anthropic、Gemini，或者自填的 OpenAI 兼容 / Anthropic 兼容地址），加上启动时（可关）一次到
 GitHub 查版本号。**本项目没有任何自建服务器**，聊天内容只在触发分析的那一刻，发给你自己在设置里
@@ -187,6 +189,7 @@ WGC 截聊天窗口（GPU 合成窗口也能截，被遮挡也能截）
 | --- | --- | --- |
 | OpenRouter（默认） | `openrouter.ai/api/alpha/decisions` | `typesafe/jev-1.13` |
 | TypeSafe 直连 | `api.typesafe.ai`（官方 `typesafe-sdk`） | `jev-latest` |
+| 阿里云 Jev | `llm-nvbu04xf01nc5z7d.cn-beijing.maas.aliyuncs.com/compatible-mode/v1/systemone` | `decision-model-preview` |
 
 **起草 3 条候选（key：`LLM_API_KEY`）**
 
@@ -246,7 +249,7 @@ MiniMax、Qwen 走 `/messages`，Grok、GPT 走 `/responses`，选了会失败�
 - **Windows 10 1903+ 或 Windows 11**（Windows Graphics Capture 的最低要求）
 - **Python 3.10–3.12**（Releases 里的 exe 是 CI 用 3.11 打的；只想用 exe 的话不用装 Python。3.13+ 不行：rapidocr-onnxruntime 1.4.x 官方包 requires_python 封顶 <3.13，pip 会静默改装 1.2.3，启动即 KeyError）
 - **聊天窗口**
-- **两把 API key**：判断用 `JEV_API_KEY`，默认来源 [OpenRouter](https://openrouter.ai/)（或
+- **API key**：判断用 `JEV_API_KEY`（阿里云 Jev 可选 `ALIYUN_API_KEY`），默认来源 [OpenRouter](https://openrouter.ai/)（或
   [TypeSafe 直连](https://console.typesafe.ai/)）；起草用 `LLM_API_KEY`，默认
   [DeepSeek 官网](https://platform.deepseek.com/)。详见下面「使用说明」
 
@@ -297,8 +300,9 @@ pyinstaller --noconfirm --clean jev.spec
 | 群聊指定回复对象 | 开了群聊里才有「回复对象」那一行，候选针对 TA 写 | `config.json` → `reply_target`（默认关） |
 | 启动时检查更新 | 开了才在启动时查一次 GitHub 最新版本号，有新版本就在标题栏下面提示 | `config.json` → `check_update`（默认开） |
 | 调试视图 | 另开一个窗口实时显示截到的画面和识别框，看识别在哪一步认错。拨一下立刻生效，不用点保存；关掉那个窗口等于关掉开关 | `config.json` → `debug_view`（默认关） |
-| 判断 · 来源 | OpenRouter 还是 TypeSafe 直连 | `config.json` → `jev_provider`（默认 `openrouter`） |
-| 判断 · 密钥 | 上面选哪家就填哪家的 key。已配置时留空 = 保留 | 注册表 `HKCU\Environment` → `JEV_API_KEY` |
+| 判断 · 来源 | OpenRouter / TypeSafe 直连 / 阿里云 Jev | `config.json` → `jev_provider`（默认 `openrouter`） |
+| 判断 · 密钥 | 上面选哪家就填哪家的 key。阿里云优先写 `ALIYUN_API_KEY`，其他写 `JEV_API_KEY`；已配置时留空 = 保留 | 注册表 `HKCU\Environment` |
+| 判断 · 阿里云 Base URL | 仅来源为阿里云 Jev 时使用；空 = 内置默认 `.../compatible-mode` | `config.json` → `aliyun_base_url` |
 | 判断 · 模型 | 可手打，也可点「获取模型」拉列表挑 | `config.json` → `jev_model`（空 = 该来源默认） |
 | 起草 · 来源 | 上面那张表里的任意一家 | `config.json` → `draft_provider`（默认 `deepseek`） |
 | 起草 · Base URL | 只有两个「自定义」来源才出现这一行 | `config.json` → `draft_base_url` |
@@ -347,7 +351,7 @@ core/                   Jev 判断内核，平台无关，跟安卓原版同一�
   engine.py             唯一入口 analyze(messages, relationship) → 候选 + 排序 + 判断
   providers.py          两张来源表（判断 / 起草）：协议、地址、默认模型；纯数据，不认 key
   llm.py                三种协议的薄适配层，一律走官方 SDK：openai / anthropic / google-genai
-  jev_client.py         Jev 判断客户端：OpenRouter（urllib）/ TypeSafe 直连（typesafe-sdk）；脱敏、退避
+  jev_client.py         Jev 判断客户端：OpenRouter（urllib）/ TypeSafe 直连 / 阿里云 Jev（typesafe-sdk）；脱敏、退避
   questions.py          7 道判断题 + build_state() + build_rank_question() + 判断小抄 guidance_text() / 中文标签 CHOICE_LABELS
   draft.py              起草 3 条候选：拼提示词、解析、过滤、不足时追问补齐；调用走 llm.py
 tools/
@@ -422,7 +426,7 @@ config.json             你自己的设置，不进仓库（在 .gitignore 里�
 - 源码安装说明明确 Python 3.10–3.12；README 和设置页加入公众号「恸码奇点」入口
 
 **v0.1.9**
-- 设置页「模型」卡片：判断 · Jev（OpenRouter / TypeSafe 直连）+ 起草 · 语言模型（12 家预设 + 自定义
+- 设置页「模型」卡片：判断 · Jev（OpenRouter / TypeSafe 直连 / 阿里云 Jev）+ 起草 · 语言模型（12 家预设 + 自定义
   Base URL），三种协议一律走官方 SDK（`openai` / `anthropic` / `google-genai`），可点「获取模型」拉
   接口的真实列表；**key 收敛成两把** `JEV_API_KEY` / `LLM_API_KEY`，换来源复用同一个槽，老的
   `OPENROUTER_API_KEY` / `DEEPSEEK_API_KEY` 仍能读到，保存一次自动迁移

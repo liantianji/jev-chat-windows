@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""Jev 判断 API 客户端：OpenRouter 或 TypeSafe 直连。
+"""Jev 判断 API 客户端：OpenRouter、TypeSafe 直连或阿里云 Jev。
 
-TypeSafe 直连走官方 `typesafe_sdk`；OpenRouter 这条是唯一自己拼 HTTP 的路——
+TypeSafe 直连和阿里云 Jev 都走官方 `typesafe_sdk`；OpenRouter 这条是唯一自己拼 HTTP 的路——
 SDK 把路径写死成 `/v1/systemone`，打不到 OpenRouter 的 `/api/alpha/decisions`。
 两条路返回同一个 dict 形状，engine 不关心跑的是哪条。key 只从环境变量读，绝不打进日志。
 """
@@ -17,11 +17,13 @@ import urllib.request
 from typing import NoReturn
 
 try:  # 当模块导入 / 当脚本直接跑 都能用
-    from .providers import (ENV_VARS, JEV_ENV, JEV_PROVIDERS, LEGACY,
-                            OPENROUTER_DECISIONS, OPENROUTER_KEY_URL, TYPESAFE_BASE)
+    from .providers import (ALIYUN_BASE, ALIYUN_ENV, ENV_VARS, JEV_ENV, JEV_PROVIDERS,
+                            LEGACY, OPENROUTER_DECISIONS, OPENROUTER_KEY_URL,
+                            TYPESAFE_BASE)
 except ImportError:
-    from providers import (ENV_VARS, JEV_ENV, JEV_PROVIDERS, LEGACY,
-                           OPENROUTER_DECISIONS, OPENROUTER_KEY_URL, TYPESAFE_BASE)
+    from providers import (ALIYUN_BASE, ALIYUN_ENV, ENV_VARS, JEV_ENV, JEV_PROVIDERS,
+                           LEGACY, OPENROUTER_DECISIONS, OPENROUTER_KEY_URL,
+                           TYPESAFE_BASE)
 
 MAX_RETRIES = 3
 
@@ -66,7 +68,7 @@ def _fail(exc: Exception, what: str) -> NoReturn:
 
 
 def _api_key(env: str = JEV_ENV) -> str:
-    """两把 key 之一（JEV_API_KEY / LLM_API_KEY）。新名字空着就退回老名字，老用户不用重填。"""
+    """JEV/LLM/ALIYUN key 之一。新名字空着就退回老名字，老用户不用重填。"""
     key = ((os.environ.get(env) or "").strip()
            or (os.environ.get(LEGACY.get(env, "")) or "").strip())
     if not key:
@@ -86,17 +88,21 @@ def _error_body(exc: urllib.error.HTTPError) -> str:
 
 
 def ask(state: dict, questions: dict, timeout: float = 20,
-        provider: str = "openrouter", model: str | None = None) -> dict:
+        provider: str = "openrouter", model: str | None = None,
+        base_url: str | None = None) -> dict:
     """问 Jev 一轮判断，返回 {"answers": {名字: 答案}, "usage": {...}}。
 
-    provider ∈ JEV_PROVIDERS（openrouter / typesafe 直连）；model=None 用该来源的默认模型。
+    provider ∈ JEV_PROVIDERS（openrouter / typesafe / aliyun）；model=None 用该来源的默认模型。
+    base_url: 阿里云 Jev 专用；空则用 providers.ALIYUN_BASE。
     两条路返回的 dict 形状一模一样，429/529 都会退避重试。绝不打印或写出 key。
     """
     spec = JEV_PROVIDERS.get(provider) or JEV_PROVIDERS["openrouter"]
-    key = _api_key(JEV_ENV)  # 两家共用同一把 key，换来源不用重填
+    key = (_api_key(ALIYUN_ENV) if os.environ.get(ALIYUN_ENV)
+           else _api_key(JEV_ENV))  # 阿里云优先用自己的 key，其余继续共用 JEV_API_KEY
     model = model or spec.default
-    if provider == "typesafe":
-        return _ask_typesafe(state, questions, key, model, timeout)
+    if provider in ("typesafe", "aliyun"):
+        sdk_base = TYPESAFE_BASE if provider == "typesafe" else (base_url or ALIYUN_BASE)
+        return _ask_typesafe(state, questions, key, model, timeout, sdk_base)
     return _ask_openrouter(state, questions, key, model, timeout)
 
 
@@ -112,14 +118,15 @@ def _answer(answer) -> dict:
             "probabilities": {str(k): v for k, v in answer.probabilities.items()}}
 
 
-def _ask_typesafe(state: dict, questions: dict, key: str, model: str, timeout: float) -> dict:
+def _ask_typesafe(state: dict, questions: dict, key: str, model: str, timeout: float,
+                  base_url: str) -> dict:
     """官方 typesafe_sdk。questions 原样传：core/questions.py 里那几个 dict 本身就是 SDK 的
     NoulModel / ChoiceModel / ScoreModel（SDK 的 normalize_questions 认 dict），不用再包一层对象。
     重试用 RetryPolicy 的默认值——它本来就重试 408/429/5xx（含 529）并退避。"""
     import typesafe_sdk
 
     try:
-        with typesafe_sdk.TypeSafeClient(api_key=key, base_url=TYPESAFE_BASE, model=model,
+        with typesafe_sdk.TypeSafeClient(api_key=key, base_url=base_url, model=model,
                                          timeout=timeout) as client:
             result = client.system_one(state, questions, model=model)
     except Exception as exc:
@@ -203,13 +210,15 @@ def _check_openrouter_key(key: str, timeout: float) -> None:
             f"取模型列表失败: {redact_secrets(getattr(exc, 'reason', exc))}") from None
 
 
-def list_models(provider: str, key: str, timeout: float = 10) -> list[str]:
+def list_models(provider: str, key: str, timeout: float = 10,
+                base_url: str | None = None) -> list[str]:
     """某家能用的 Jev 模型 id，去重排序。失败抛 JevError（设置页直接显示这句话）。"""
-    if provider == "typesafe":
+    if provider in ("typesafe", "aliyun"):
         import typesafe_sdk
 
         try:
-            with typesafe_sdk.TypeSafeClient(api_key=key, base_url=TYPESAFE_BASE,
+            sdk_base = TYPESAFE_BASE if provider == "typesafe" else (base_url or ALIYUN_BASE)
+            with typesafe_sdk.TypeSafeClient(api_key=key, base_url=sdk_base,
                                              timeout=timeout) as client:
                 return sorted({m.name for m in client.models.list().models})
         except Exception as exc:
@@ -294,6 +303,18 @@ if __name__ == "__main__":
         "type": "score", "score": 4.0, "confidence": 0.6,
         "probabilities": {"4": 0.6, "5": 0.4}}  # score 的概率 key 转回字符串
     assert got["usage"] == {"input_tokens": 11, "output_tokens": 22}
+
+    # 阿里云 Jev 走同一条 typesafe-sdk 通路，但 base_url 必须落到阿里云
+    with patch.object(typesafe_sdk, "TypeSafeClient", _FakeClient):
+        aliyun_ask = ask({"chat": {}}, questions, provider="aliyun",
+                         model="decision-model-preview",
+                         base_url="https://custom.alibaba/base")
+        aliyun_init = seen["init"]
+        assert aliyun_init["base_url"] == "https://custom.alibaba/base"
+        assert aliyun_init["model"] == "decision-model-preview"
+        assert list_models("aliyun", "ts-key", base_url="https://custom.alibaba/base") == [
+            "jev-latest", "jev-preview"]
+        assert aliyun_ask == got
 
     class _Boom(Exception):
         status = 429

@@ -2,7 +2,7 @@
 """设置持久化。key 硬约束（docs/KICKOFF.md #6）：只进环境变量，绝不落文件；其余设置落 config.json。
 
 key 的持久化走 Windows 用户环境变量（注册表 HKCU\\Environment，跟 setx 写的是同一个地方）。
-全程只有两把：判断 JEV_API_KEY、起草 LLM_API_KEY，跟选哪家来源无关。
+判断默认用 JEV_API_KEY，起草用 LLM_API_KEY；阿里云 Jev 可选 ALIYUN_API_KEY，优先于 JEV_API_KEY。
 读的时候先看进程环境，没有就直接读注册表——IDE 启动时把环境快照拿走了，之后再 Run 继承的还是旧环境，
 只靠 os.environ 会「保存了下次打开还是没有」。"""
 from __future__ import annotations
@@ -12,7 +12,8 @@ import json
 import os
 import sys  # 只为下面这一处：打包后 __file__ 指向临时解包目录，config.json 得放在 exe 旁边才存得住
 
-from core.providers import CUSTOM, DRAFT_PROVIDERS, JEV_ENV, JEV_PROVIDERS, LEGACY, LLM_ENV
+from core.providers import (ALIYUN_BASE, ALIYUN_ENV, CUSTOM, DRAFT_PROVIDERS, JEV_ENV,
+                            JEV_PROVIDERS, LEGACY, LLM_ENV)
 
 _ROOT = (os.path.dirname(sys.executable) if getattr(sys, "frozen", False)
          else os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -52,7 +53,7 @@ def language() -> str:
     return str(_read("lang") or "zh").strip().lower()
 
 def jev_provider() -> str:
-    """判断模型走哪家：openrouter（默认）或 typesafe 直连。"""
+    """判断模型走哪家：openrouter（默认）、typesafe 直连或阿里云 Jev。"""
     v = _read("jev_provider")
     return v if v in JEV_PROVIDERS else _DEFAULT_JEV
 
@@ -75,6 +76,10 @@ def draft_model() -> str:
 def draft_base_url() -> str:
     """自定义来源的 Base URL；其余来源用表里的，这里返回空。"""
     return str(_read("draft_base_url") or "") if draft_provider() in CUSTOM else ""
+
+def aliyun_base_url() -> str:
+    """阿里云 Jev 的 Base URL；默认用 providers.ALIYUN_BASE。"""
+    return str(_read("aliyun_base_url") or ALIYUN_BASE).strip() or ALIYUN_BASE
 
 def reply_target() -> bool:
     """群聊指定回复对象：开了才在界面上选回复给谁、才把对象喂给模型。默认关。"""
@@ -108,8 +113,9 @@ def _read_env(env_name: str) -> str:
     return v
 
 def _get_key(env_name: str) -> str:
-    """两把 key 之一。新名字空着就退回老版本按来源存的变量（下次保存会抄进新名字）。"""
-    return _read_env(env_name) or _read_env(LEGACY[env_name])
+    """读一把 key。新名字空着就退回老版本按来源存的变量（下次保存会抄进新名字）。"""
+    return _read_env(env_name) or (_read_env(LEGACY[env_name])
+                                   if env_name in LEGACY else "")
 
 def _set_key(env_name: str, value: str) -> None:
     """只写进程环境 + HKCU\\Environment，不写任何文件。"""
@@ -135,9 +141,11 @@ def _notify_env() -> None:
     except Exception:
         pass
 
-def jev_key() -> str:
-    """判断那把 key，两家来源共用。"""
-    return _get_key(JEV_ENV)
+def jev_key(provider: str | None = None) -> str:
+    """判断那把 key；阿里云优先读 ALIYUN_API_KEY，没配就退回 JEV_API_KEY。"""
+    provider = provider or jev_provider()
+    return _get_key(ALIYUN_ENV) or _get_key(JEV_ENV) if provider == "aliyun" \
+        else _get_key(JEV_ENV)
 
 def has_jev_key() -> bool:
     return bool(jev_key())
@@ -158,13 +166,15 @@ def save(relationship_text: str | None = None, context_n: int | None = None, *,
          draft_base_url_text: str | None = None, reply_target_on: bool | None = None,
          style_text: str | None = None, thinking_on: bool | None = None,
          check_update_on: bool | None = None, debug_view_on: bool | None = None,
-         lang_text: str | None = None) -> None:
+         lang_text: str | None = None,
+         aliyun_base_url_text: str | None = None) -> None:
     """每个参数为空/None = 保留当前值。两把 key 写进程环境 + HKCU\\Environment，不写任何文件。"""
     jev = jev_provider_text if jev_provider_text in JEV_PROVIDERS else jev_provider()
     draft = draft_provider_text if draft_provider_text in DRAFT_PROVIDERS else draft_provider()
     # 没重填就把老变量里的值抄进新名字，迁移一次性做完（_get_key 已经退回读过老的了）
     wrote_key = False
-    for env, typed in ((JEV_ENV, jev_key_text), (LLM_ENV, llm_key_text)):
+    for env, typed in ((ALIYUN_ENV if jev == "aliyun" else JEV_ENV, jev_key_text),
+                       (LLM_ENV, llm_key_text)):
         value = typed or ("" if _read_env(env) else _get_key(env))
         if value:
             _set_key(env, value)
@@ -184,6 +194,7 @@ def save(relationship_text: str | None = None, context_n: int | None = None, *,
         "jev_provider": jev, "jev_model": keep(jev_model_text, "jev_model"),
         "draft_provider": draft, "draft_model": keep(draft_model_text, "draft_model"),
         "draft_base_url": keep(draft_base_url_text, "draft_base_url"),
+        "aliyun_base_url": keep(aliyun_base_url_text, "aliyun_base_url"),
         "reply_target": flag(reply_target_on, reply_target),
         "thinking": flag(thinking_on, thinking),
         "check_update": flag(check_update_on, check_update),

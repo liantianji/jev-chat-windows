@@ -5,7 +5,7 @@
 key 一律由调用方从环境变量/注册表取了再传进来。协议具体怎么调见 core/llm.py。
 
 全程只有两把 key：判断一把 JEV_API_KEY、起草一把 LLM_API_KEY，跟选哪家来源无关，
-换来源就是换同一个槽里的值。
+阿里云 Jev 可单独用 ALIYUN_API_KEY，不覆盖 TypeSafe/OpenRouter 的 key。
 """
 from __future__ import annotations
 
@@ -13,6 +13,8 @@ import uuid
 from collections import namedtuple
 
 OPENROUTER_BASE = "https://openrouter.ai/api/v1"  # OpenAI 兼容；auth/key 探测也挂在它下面
+ALIYUN_BASE = "https://llm-nvbu04xf01nc5z7d.cn-beijing.maas.aliyuncs.com/compatible-mode"
+
 # Jev 判断只有 OpenRouter 这条路要自己拼 HTTP：typesafe_sdk 把路径写死成 /v1/systemone，打不到这个地址
 OPENROUTER_DECISIONS = "https://openrouter.ai/api/alpha/decisions"
 # 免费的密钥探测端点：Jev 模型不在 /models 目录里（列表写死），key 对不对靠它验
@@ -21,6 +23,7 @@ TYPESAFE_BASE = "https://api.typesafe.ai"
 
 JEV_ENV = "JEV_API_KEY"    # 判断那把，不管选 OpenRouter 还是 TypeSafe
 LLM_ENV = "LLM_API_KEY"    # 起草那把，不管选哪家语言模型
+ALIYUN_ENV = "ALIYUN_API_KEY"  # 阿里云 Jev 单独一把；没设时退回 JEV_API_KEY
 # 迁移：老版本按来源各存一个变量。新变量空着、老变量有值就先用老的（保存时抄进新的）
 LEGACY = {JEV_ENV: "OPENROUTER_API_KEY", LLM_ENV: "DEEPSEEK_API_KEY"}
 
@@ -28,6 +31,7 @@ _Jev = namedtuple("_Jev", "name default")
 JEV_PROVIDERS = {
     "openrouter": _Jev("OpenRouter", "typesafe/jev-1.13"),
     "typesafe": _Jev("TypeSafe 直连", "jev-latest"),
+    "aliyun": _Jev("阿里云北京", "decision-model-preview"),
 }
 
 # protocol ∈ {openai, anthropic, gemini}：决定 core/llm.py 用哪个官方 SDK
@@ -70,7 +74,7 @@ CUSTOM = ("custom_openai", "custom_anthropic")
 # 起草时认思考开关的来源，设置页那句提示照着这里写
 THINKING = ("DeepSeek", "OpenRouter", "Anthropic", "Gemini")
 # 所有可能存 key 的环境变量（新两把 + 两个老名字），脱敏时一次全过一遍（jev_client.redact_secrets）
-ENV_VARS = sorted({JEV_ENV, LLM_ENV, *LEGACY.values()})
+ENV_VARS = sorted({JEV_ENV, LLM_ENV, ALIYUN_ENV, *LEGACY.values()})
 
 
 if __name__ == "__main__":
@@ -94,5 +98,6 @@ if __name__ == "__main__":
     assert not any(go.keep(m) for m in (
         "minimax-m3", "qwen3.8-max", "grok-4.7", "gpt-6-luna", "muse-spark-1.2-contributor"))
     # 全程只有两把 key，脱敏还得管老名字
-    assert ENV_VARS == ["DEEPSEEK_API_KEY", "JEV_API_KEY", "LLM_API_KEY", "OPENROUTER_API_KEY"]
+    assert ENV_VARS == ["ALIYUN_API_KEY", "DEEPSEEK_API_KEY", "JEV_API_KEY",
+                        "LLM_API_KEY", "OPENROUTER_API_KEY"]
     print("providers ok")
