@@ -46,8 +46,10 @@
 设置页的「模型」卡片分两节，各填一把 key：
 
 1. **判断 · Jev** —— 判断意图、紧张度，并给三条候选排序。来源选 **OpenRouter**（默认，key 在
-   [openrouter.ai](https://openrouter.ai/) 申请）或 **TypeSafe 直连 / 阿里云 Jev**（key 在
-   [console.typesafe.ai](https://console.typesafe.ai/) 申请）。填的是哪家的 key 看你上面选了哪家。
+   [openrouter.ai](https://openrouter.ai/) 申请）或 **TypeSafe 直连**（key 在
+   [console.typesafe.ai](https://console.typesafe.ai/) 申请）。
+   **阿里云** （key 在 [bailian.console.aliyun.com](https://bailian.console.aliyun.com/)申请）。
+    Jev填的是哪家的 key 看你上面选了哪家。
 2. **起草 · 语言模型** —— 写那三条候选。默认 **DeepSeek 官网**直连，key 在
    [platform.deepseek.com](https://platform.deepseek.com/) 申请（很便宜，起草一次几厘钱）。
    换别家见下面的表，OpenAI / Anthropic / Gemini 三种接口都支持。
