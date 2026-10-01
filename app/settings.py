@@ -22,6 +22,7 @@ _DEFAULT_RELATIONSHIP = "romantic partners"
 _DEFAULT_CONTEXT = 10
 _DEFAULT_JEV = "openrouter"
 _DEFAULT_DRAFT = "deepseek"
+_ALIYUN_BASE_URL_ENV = "ALIYUN_BASE_URL"
 
 
 def _read(name: str, default=None):
@@ -77,41 +78,10 @@ def draft_base_url() -> str:
     """自定义来源的 Base URL；其余来源用表里的，这里返回空。"""
     return str(_read("draft_base_url") or "") if draft_provider() in CUSTOM else ""
 
-_REGISTRY_KEY = r"Software\JevChat"
-
-
-def _read_registry_setting(name: str) -> str:
-    """读一个注册表设置；只在 config.json 里没有时才兜底用。"""
-    try:
-        import winreg
-
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, _REGISTRY_KEY) as k:
-            return str(winreg.QueryValueEx(k, name)[0]).strip()
-    except Exception:
-        return ""
-
-
-def _write_registry_setting(name: str, value: str) -> None:
-    r"""把设置写进 HKCU\Software\JevChat；value 为空就删掉。"""
-    try:
-        import winreg
-
-        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, _REGISTRY_KEY) as k:
-            if value:
-                winreg.SetValueEx(k, name, 0, winreg.REG_SZ, value)
-            else:
-                try:
-                    winreg.DeleteValue(k, name)
-                except OSError:
-                    pass
-    except Exception:
-        pass
-
-
 def aliyun_base_url() -> str:
     """阿里云 Jev 的 Base URL；config 优先，config 被清掉就从注册表恢复。"""
     return str(_read("aliyun_base_url")
-               or _read_registry_setting("aliyun_base_url")
+               or _read_env(_ALIYUN_BASE_URL_ENV)
                or ALIYUN_BASE).strip()
 
 def reply_target() -> bool:
@@ -151,13 +121,22 @@ def _get_key(env_name: str) -> str:
                                    if env_name in LEGACY else "")
 
 def _set_key(env_name: str, value: str) -> None:
-    """只写进程环境 + HKCU\\Environment，不写任何文件。"""
-    os.environ[env_name] = value
+    """只写进程环境 + HKCU\\Environment，不写任何文件；空值会删掉。"""
+    if value:
+        os.environ[env_name] = value
+    else:
+        os.environ.pop(env_name, None)
     try:
         import winreg
 
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment", 0, winreg.KEY_SET_VALUE) as k:
-            winreg.SetValueEx(k, env_name, 0, winreg.REG_SZ, value)
+            if value:
+                winreg.SetValueEx(k, env_name, 0, winreg.REG_SZ, value)
+            else:
+                try:
+                    winreg.DeleteValue(k, env_name)
+                except OSError:
+                    pass
     except Exception:
         pass  # 非 Windows（本机 Mac 开发）走不到，忽略
 
@@ -237,8 +216,9 @@ def save(relationship_text: str | None = None, context_n: int | None = None, *,
     lang = _read("lang") if lang_text is None else lang_text.strip().lower()
     if lang is not None:
         data["lang"] = lang
-    # Base URL 也进注册表：config.json 被清空/删掉时，用户不用再重填一次。
-    _write_registry_setting("aliyun_base_url", data["aliyun_base_url"])
+    # Base URL 也进 HKCU\Environment：config.json 被清空/删掉时，用户不用再重填一次。
+    _set_key(_ALIYUN_BASE_URL_ENV, data["aliyun_base_url"])
+    _notify_env()
 
     with open(_CONFIG, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False)
