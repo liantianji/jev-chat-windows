@@ -79,6 +79,17 @@ def _api_key(env: str = JEV_ENV) -> str:
     return key
 
 
+def _aliyun_sdk_base(base_url: str | None) -> str:
+    """阿里云 Base URL 只填或填写到 /compatible-mode 之前；这里统一补 /compatible-mode。"""
+    sdk_base = (base_url or ALIYUN_BASE or "").strip()
+    if not sdk_base:
+        raise JevError("阿里云 Jev 需要设置 Base URL。")
+    sdk_base = sdk_base.rstrip("/")
+    if not sdk_base.endswith("/compatible-mode"):
+        sdk_base += "/compatible-mode"
+    return sdk_base
+
+
 def _error_body(exc: urllib.error.HTTPError) -> str:
     try:
         raw = exc.read().decode("utf-8", errors="replace")
@@ -100,10 +111,13 @@ def ask(state: dict, questions: dict, timeout: float = 20,
     key = (_api_key(ALIYUN_ENV) if os.environ.get(ALIYUN_ENV)
            else _api_key(JEV_ENV))  # 阿里云优先用自己的 key，其余继续共用 JEV_API_KEY
     model = model or spec.default
-    if provider in ("typesafe", "aliyun"):
-        sdk_base = TYPESAFE_BASE if provider == "typesafe" else (base_url or ALIYUN_BASE)
-        return _ask_typesafe(state, questions, key, model, timeout, sdk_base)
-    return _ask_openrouter(state, questions, key, model, timeout)
+    if provider == "typesafe":
+        sdk_base = TYPESAFE_BASE
+    elif provider == "aliyun":
+        sdk_base = _aliyun_sdk_base(base_url)
+    else:
+        return _ask_openrouter(state, questions, key, model, timeout)
+    return _ask_typesafe(state, questions, key, model, timeout, sdk_base)
 
 
 def _answer(answer) -> dict:
@@ -217,7 +231,7 @@ def list_models(provider: str, key: str, timeout: float = 10,
         import typesafe_sdk
 
         try:
-            sdk_base = TYPESAFE_BASE if provider == "typesafe" else (base_url or ALIYUN_BASE)
+            sdk_base = TYPESAFE_BASE if provider == "typesafe" else _aliyun_sdk_base(base_url)
             with typesafe_sdk.TypeSafeClient(api_key=key, base_url=sdk_base,
                                              timeout=timeout) as client:
                 return sorted({m.name for m in client.models.list().models})
@@ -310,7 +324,7 @@ if __name__ == "__main__":
                          model="decision-model-preview",
                          base_url="https://custom.alibaba/base")
         aliyun_init = seen["init"]
-        assert aliyun_init["base_url"] == "https://custom.alibaba/base"
+        assert aliyun_init["base_url"] == "https://custom.alibaba/base/compatible-mode"
         assert aliyun_init["model"] == "decision-model-preview"
         assert list_models("aliyun", "ts-key", base_url="https://custom.alibaba/base") == [
             "jev-latest", "jev-preview"]

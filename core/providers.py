@@ -13,7 +13,7 @@ import uuid
 from collections import namedtuple
 
 OPENROUTER_BASE = "https://openrouter.ai/api/v1"  # OpenAI 兼容；auth/key 探测也挂在它下面
-ALIYUN_BASE = "https://llm-nvbu04xf01nc5z7d.cn-beijing.maas.aliyuncs.com/compatible-mode"
+ALIYUN_BASE = ""  # 阿里云 Jev 的 Base URL 以 UI/config 设置为准
 
 # Jev 判断只有 OpenRouter 这条路要自己拼 HTTP：typesafe_sdk 把路径写死成 /v1/systemone，打不到这个地址
 OPENROUTER_DECISIONS = "https://openrouter.ai/api/alpha/decisions"
@@ -31,7 +31,7 @@ _Jev = namedtuple("_Jev", "name default")
 JEV_PROVIDERS = {
     "openrouter": _Jev("OpenRouter", "typesafe/jev-1.13"),
     "typesafe": _Jev("TypeSafe 直连", "jev-latest"),
-    "aliyun": _Jev("阿里云北京", "decision-model-preview"),
+    "aliyun": _Jev("阿里云", "decision-model-preview"),
 }
 
 # protocol ∈ {openai, anthropic, gemini}：决定 core/llm.py 用哪个官方 SDK

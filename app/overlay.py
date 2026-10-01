@@ -672,14 +672,19 @@ class Overlay:
         bind(group.providerBox, lambda: f"{T(title)} · {T('来源')}", "setAccessibleName")
         source_label.setBuddy(group.providerBox)
         box.addWidget(group.providerBox)
-        if kind == "draft":  # 只有两个「自定义」来源要自己填地址，别的来源这一行藏着
-            self.baseLabel = _label("Base URL", 13)
-            box.addWidget(self.baseLabel)
-            self.baseEdit = LineEdit()
-            bind(self.baseEdit, "https://你的服务/v1", "setPlaceholderText")
-            bind(self.baseEdit, "自定义来源 Base URL", "setAccessibleName")
-            self.baseLabel.setBuddy(self.baseEdit)
-            box.addWidget(self.baseEdit)
+        if kind in ("draft", "jev"):  # 起草自定义来源 / 阿里云 Jev 都要自己填地址
+            group.baseLabel = _label("Base URL", 13)
+            box.addWidget(group.baseLabel)
+            group.baseEdit = LineEdit()
+            bind(group.baseEdit,
+                 "https://你的服务/v1" if kind == "draft"
+                 else "https://{WorkspaceId}.{region}.maas.aliyuncs.com/compatible-mode",
+                 "setPlaceholderText")
+            bind(group.baseEdit,
+                 "自定义来源 Base URL" if kind == "draft" else "阿里云 Jev Base URL",
+                 "setAccessibleName")
+            group.baseLabel.setBuddy(group.baseEdit)
+            box.addWidget(group.baseEdit)
         key_label = _tlabel("密钥", 13)
         box.addWidget(key_label)
         group.keyEdit = PasswordLineEdit()
@@ -738,16 +743,22 @@ class Overlay:
                 name = group.providerBox.fontMetrics().elidedText(name, Qt.ElideRight, 180)
             group.providerBox.setText(name)
         custom = self._provider_of(self.draft) in providers.CUSTOM
-        self.baseLabel.setVisible(custom)
-        self.baseEdit.setVisible(custom)
+        aliyun = self._provider_of(self.jev) == "aliyun"
+        self.jev.baseLabel.setVisible(aliyun)
+        self.jev.baseEdit.setVisible(aliyun)
+        self.draft.baseLabel.setVisible(custom)
+        self.draft.baseEdit.setVisible(custom)
 
     def _fetch_models(self, group):
         """「获取模型」：拿填的 key（没填就拿存的）去问接口，网络调用丢后台线程。"""
         provider = self._provider_of(group)
         custom = group.kind == "draft" and provider in providers.CUSTOM
-        base = self.baseEdit.text().strip() if custom else (
-            settings.aliyun_base_url() if group.kind == "jev" and provider == "aliyun"
-            else None)
+        if group.kind == "draft":
+            base = group.baseEdit.text().strip() if custom else None
+        elif provider == "aliyun":
+            base = group.baseEdit.text().strip() or settings.aliyun_base_url()
+        else:
+            base = None
         key = group.keyEdit.text().strip() or group.stored_key()
         if not key:
             bind(group.status, "先填密钥", "setText")
@@ -846,7 +857,8 @@ class Overlay:
         self.targetSwitch.setChecked(settings.reply_target())
         self._set_group(self.jev, settings.jev_provider(), settings.jev_model())
         self._set_group(self.draft, settings.draft_provider(), settings.draft_model())
-        self.baseEdit.setText(settings.draft_base_url())
+        self.jev.baseEdit.setText(settings.aliyun_base_url())
+        self.draft.baseEdit.setText(settings.draft_base_url())
         self.thinkingSwitch.setChecked(settings.thinking())
         self.updateSwitch.setChecked(settings.check_update())
         self.set_debug_switch(settings.debug_view())  # 屏蔽信号地拨，别在加载时开关一遍窗口
@@ -858,14 +870,15 @@ class Overlay:
         relationship = relationship or self.relEdit.text().strip()
         jev_provider = self._provider_of(self.jev)
         draft_provider = self._provider_of(self.draft)
-        base = self.baseEdit.text().strip()
+        base = self.draft.baseEdit.text().strip()
+        jev_base = self.jev.baseEdit.text().strip() or None
         if not relationship:
             self._settings_feedback("请填写关系背景，或选择一个已有选项。", error=True)
             self.relEdit.setFocus()
             return
         if draft_provider in providers.CUSTOM and not base:
             self._settings_feedback("自定义来源要填 Base URL。", error=True)
-            self.baseEdit.setFocus()
+            self.draft.baseEdit.setFocus()
             return
         for group, provider in ((self.jev, jev_provider), (self.draft, draft_provider)):
             name = group.table[provider].name
@@ -887,6 +900,7 @@ class Overlay:
                           llm_key_text=self.draft.keyEdit.text().strip() or None,
                           draft_model_text=self.draft.modelBox.text().strip(),
                           draft_base_url_text=base,
+                          aliyun_base_url_text=jev_base,
                           reply_target_on=self.targetSwitch.isChecked(),
                           style_text=self.styleEdit.text().strip(),
                           thinking_on=self.thinkingSwitch.isChecked(),

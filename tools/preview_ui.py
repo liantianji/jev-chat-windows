@@ -116,14 +116,16 @@ def main() -> int:
                      "jev_key": configured, "llm_key": configured,
                      "jev_provider": "openrouter", "jev_model": "typesafe/jev-1.13",
                      "draft_provider": "deepseek", "draft_model": "deepseek-flash",
-                     "draft_base_url": "", "reply_target": True,
+                     "draft_base_url": "",
+                     "aliyun_base_url": "https://llm-nvbu04xf01nc5z7d.cn-beijing.maas.aliyuncs.com/compatible-mode",
+                     "reply_target": True,
                      "style": "话少，基本不用标点，急了才发感叹号", "thinking": False,
                      "check_update": True, "debug_view": args.state == "debug"}
 
     def save_demo_settings(relationship_text=None, context_n=None, *, jev_provider_text=None,
                            jev_key_text=None, jev_model_text=None, draft_provider_text=None,
                            llm_key_text=None, draft_model_text=None, draft_base_url_text=None,
-                           reply_target_on=None, style_text=None, thinking_on=None,
+                           aliyun_base_url_text=None, reply_target_on=None, style_text=None, thinking_on=None,
                            check_update_on=None, debug_view_on=None):
         if relationship_text:
             demo_settings["relationship"] = relationship_text
@@ -131,7 +133,8 @@ def main() -> int:
             demo_settings["context"] = context_n
         for name, value in (("jev_provider", jev_provider_text), ("jev_model", jev_model_text),
                             ("draft_provider", draft_provider_text), ("draft_model", draft_model_text),
-                            ("draft_base_url", draft_base_url_text), ("style", style_text)):
+                            ("draft_base_url", draft_base_url_text), ("aliyun_base_url", aliyun_base_url_text),
+                            ("style", style_text)):
             if value is not None:
                 demo_settings[name] = value
         for name, key in (("jev_key", jev_key_text), ("llm_key", llm_key_text)):
@@ -168,6 +171,7 @@ def main() -> int:
         draft_provider=lambda: demo_settings["draft_provider"],
         draft_model=lambda: demo_settings["draft_model"],
         draft_base_url=lambda: demo_settings["draft_base_url"],
+        aliyun_base_url=lambda: demo_settings["aliyun_base_url"],
         reply_target=lambda: demo_settings["reply_target"],
         style=lambda: demo_settings["style"],
         thinking=lambda: demo_settings["thinking"],

@@ -78,8 +78,8 @@ def draft_base_url() -> str:
     return str(_read("draft_base_url") or "") if draft_provider() in CUSTOM else ""
 
 def aliyun_base_url() -> str:
-    """阿里云 Jev 的 Base URL；默认用 providers.ALIYUN_BASE。"""
-    return str(_read("aliyun_base_url") or ALIYUN_BASE).strip() or ALIYUN_BASE
+    """阿里云 Jev 的 Base URL；按 UI/config 设置为主，默认空。"""
+    return str(_read("aliyun_base_url") or ALIYUN_BASE).strip()
 
 def reply_target() -> bool:
     """群聊指定回复对象：开了才在界面上选回复给谁、才把对象喂给模型。默认关。"""
