@@ -77,9 +77,42 @@ def draft_base_url() -> str:
     """自定义来源的 Base URL；其余来源用表里的，这里返回空。"""
     return str(_read("draft_base_url") or "") if draft_provider() in CUSTOM else ""
 
+_REGISTRY_KEY = r"Software\JevChat"
+
+
+def _read_registry_setting(name: str) -> str:
+    """读一个注册表设置；只在 config.json 里没有时才兜底用。"""
+    try:
+        import winreg
+
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, _REGISTRY_KEY) as k:
+            return str(winreg.QueryValueEx(k, name)[0]).strip()
+    except Exception:
+        return ""
+
+
+def _write_registry_setting(name: str, value: str) -> None:
+    r"""把设置写进 HKCU\Software\JevChat；value 为空就删掉。"""
+    try:
+        import winreg
+
+        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, _REGISTRY_KEY) as k:
+            if value:
+                winreg.SetValueEx(k, name, 0, winreg.REG_SZ, value)
+            else:
+                try:
+                    winreg.DeleteValue(k, name)
+                except OSError:
+                    pass
+    except Exception:
+        pass
+
+
 def aliyun_base_url() -> str:
-    """阿里云 Jev 的 Base URL；按 UI/config 设置为主，默认空。"""
-    return str(_read("aliyun_base_url") or ALIYUN_BASE).strip()
+    """阿里云 Jev 的 Base URL；config 优先，config 被清掉就从注册表恢复。"""
+    return str(_read("aliyun_base_url")
+               or _read_registry_setting("aliyun_base_url")
+               or ALIYUN_BASE).strip()
 
 def reply_target() -> bool:
     """群聊指定回复对象：开了才在界面上选回复给谁、才把对象喂给模型。默认关。"""
@@ -194,7 +227,8 @@ def save(relationship_text: str | None = None, context_n: int | None = None, *,
         "jev_provider": jev, "jev_model": keep(jev_model_text, "jev_model"),
         "draft_provider": draft, "draft_model": keep(draft_model_text, "draft_model"),
         "draft_base_url": keep(draft_base_url_text, "draft_base_url"),
-        "aliyun_base_url": keep(aliyun_base_url_text, "aliyun_base_url"),
+        "aliyun_base_url": (aliyun_base_url_text.strip()
+                            if aliyun_base_url_text is not None else aliyun_base_url()),
         "reply_target": flag(reply_target_on, reply_target),
         "thinking": flag(thinking_on, thinking),
         "check_update": flag(check_update_on, check_update),
@@ -203,5 +237,8 @@ def save(relationship_text: str | None = None, context_n: int | None = None, *,
     lang = _read("lang") if lang_text is None else lang_text.strip().lower()
     if lang is not None:
         data["lang"] = lang
+    # Base URL 也进注册表：config.json 被清空/删掉时，用户不用再重填一次。
+    _write_registry_setting("aliyun_base_url", data["aliyun_base_url"])
+
     with open(_CONFIG, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False)
