@@ -191,7 +191,7 @@ WGC 截聊天窗口（GPU 合成窗口也能截，被遮挡也能截）
 | --- | --- | --- |
 | OpenRouter（默认） | `openrouter.ai/api/alpha/decisions` | `typesafe/jev-1.13` |
 | TypeSafe 直连 | `api.typesafe.ai`（官方 `typesafe-sdk`） | `jev-latest` |
-| 阿里云 Jev | `llm-nvbu04xf01nc5z7d.cn-beijing.maas.aliyuncs.com/compatible-mode/v1/systemone` | `decision-model-preview` |
+| 阿里云 决策模型 | `https://{WorkspaceId}.cn-beijing.maas.aliyuncs.com/compatible-mode/v1/systemone` | `decision-model-preview` |
 
 **起草 3 条候选（key：`LLM_API_KEY`）**
 
